@@ -1,6 +1,7 @@
 import numpy as np
 import detector
 import configparser
+import constants
 
 
 class Signal:
@@ -11,6 +12,8 @@ class Signal:
         self._read_ini()
         self._generate_time_array()
         self._generate_signal()
+        self.omega_r = constants.C_OMEGA_R
+        
 
     
     def _read_ini(self):
@@ -38,12 +41,41 @@ class Signal:
         self.ov = float(search_params.get("ov",4.0))
         self.band = float(search_params.get("band", 1234))
 
-        self.sampling_rate = float(signal_params.get("sampling_rate", 44100))
-        self.duration = float(section.get("duration", 1.0))
 
+    def sampling_time(self):
+
+        return 1.0/(2.0 * self.bandwidth)
+    
+    # Amplitude modulation function ( a replica of modvir in settings.c)
+
+    def amplitude_modulation():
+
+
+
+        
+        
     def four_amplitudes(self):
 
-        return A11,A12,A21,A22
+        #To be cross-verified with TDFstat paper 1 (eq.32,33,34,35)
+
+
+        term1 = np.sin(self.wobble_angle)*np.sin(self.wobble_angle)
+        term2 = 0.5*(1+np.cos(self.inclination)*np.cos(self.inclination))
+        
+        psi = self.polarization
+        phi0 = self.phase 
+        iota = self.inclination
+
+        A21 = term1*(term2*np.cos(2*psi)*np.cos(2*phi0) -np.cos(iota)*np.sin(2*psi)*np.sin(2*phi0) )
+        A22  = term1*(term2 * np.sin(2*psi)*np.cos(2*phi0) + np.cos(iota)*np.cos(2*psi)*np.sin(2*phi0))
+
+        A23 = term1*(-term2*np.cos(2*psi)*np.sin(2*phi0)- np.cos(iota)*np.sin(2*psi)*np.cos(2*phi0) )
+        A24 = term1*(-term2*np.sin(2*psi)*np.sin(2*phi0)+np.cos(iota)*np.cos(2*psi)*np.cos(2*phi0))
+
+        return A21,A22,A23,A24
+
+
+
 
 
 
