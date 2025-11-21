@@ -44,14 +44,25 @@ class Signal:
 
     def sampling_time(self):
 
+        """
+        dt in TDFstat
+        """
+
         return 1.0/(2.0 * self.bandwidth)
     
     # Amplitude modulation function ( a replica of modvir in settings.c)
 
-    def amplitude_modulation():
+    def amplitude_modulation(self):
+
+        return
 
 
+    def OMEGA_S(self):
+        """
+        Dimensionless angular frequency 
+        """
 
+        return 2*np.pi*self.frequency * self.sampling_time
         
         
     def four_amplitudes(self):
