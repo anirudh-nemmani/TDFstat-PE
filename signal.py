@@ -50,6 +50,16 @@ class Signal:
 
         return 1.0/(2.0 * self.bandwidth)
     
+    def nSource(self):
+
+        n1 = np.cos(self.ra)*np.cos(self.dec)
+        n2 = np.cos()
+        n3 = np.sin(self.dec)
+
+        return [n1,n2,n3]
+
+
+    
     # Amplitude modulation function ( a replica of modvir in settings.c)
 
     def amplitude_modulation(self):
@@ -84,6 +94,19 @@ class Signal:
         A24 = term1*(-term2*np.sin(2*psi)*np.sin(2*phi0)+np.cos(iota)*np.cos(2*psi)*np.cos(2*phi0))
 
         return A21,A22,A23,A24
+    
+    def phase_function(self):
+         
+        return 
+    def signal(self):
+
+        A21,A22,A23,A24 = self.four_amplitudes()
+        a,b = self.amplitude_modulation()
+
+        return (a*A21 + b*A22 )*np.cos(self.phase_function()) + (a*A23 + b*A24)*np.sin(self.phase_function())
+
+
+
 
 
 
