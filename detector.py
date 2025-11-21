@@ -2,191 +2,93 @@ import struct
 
 import numpy as np
 
-import constants as cs
-
 
 class Detector:
-    def __init__(self, name, in_dir, seg, N):
-        self.name = name  # detector name
-        self.path = in_dir  # input directory
+    """
+    Class to handle detector data and ephemeris information.
 
-        self.seg = seg  # segment number
-        self.N = N  # number of data points
+    Attributes:
+        name (str): Name of the detector.
+        path (str): Input directory path.
+        seg (int): Segment number.
+        band (int): Frequency band number.
+        N (int): Number of data points.
+    """
+
+    def __init__(self, name, in_dir, seg, band, N):
+        self.name = name  # Detector name
+        self.path = in_dir  # Input directory
+
+        self.seg = seg  # Segment number
+        self.band = band  # Frequency band number
+        self.N = N  # Number of data points
 
         self.ephi = 0.0  # Geographical latitude phi in radians
         self.elam = 0.0  # Geographical longitude in radians
         self.eheight = 0.0  # Height h above the Earth ellipsoid in meters
         self.egam = 0.0  # Orientation of the detector gamma
 
-        self.DetSSB = np.zeros(3 * N, dtype=np.float64)  # Ephimeries of the detector
-        self.aa = np.zeros(N, dtype=np.float64)  # Amplitude modulation a(t)
-        self.bb = np.zeros(N, dtype=np.float64)  # Amplitude modulation b(t)
+        self.DetSSB = np.zeros(3 * N, dtype=np.float64)  # Ephemeris of the detector
         self.phir = 0.0
+        self.epsm = 0.0
+
+        self.data = np.zeros(N, dtype=np.float64)  # Time-domain data
+        self.Nzeros = 0  # Number of 0s in the data
+        self.crf0 = 0.0  # Number of 0s as: N / (N - Nzeros)
+        self.mean = 0.0  # Mean of the detector data
+        self.var = 0.0  # Variance of the detector data
 
         self.get_DetSSB()
+        self.add_data()
 
     def get_DetSSB(self):
-        # Ephemeris file handling
+        """
+        Load the ephemeris data for a given detector from the DetSSB file.
+        """
         filename = f"{self.path}/{self.seg:03d}/{self.name}/DetSSB.bin"
 
         try:
             with open(filename, "rb") as data:
-                self.DetSSB = np.frombuffer(data.read(3 * self.N * 8), dtype=np.float64)
-                self.phir = struct.unpack("d", data.read(8))[0]
-                self.epsm = struct.unpack("d", data.read(8))[0]
-                print(f"Using {filename} as detector {self.name} ephemeris...")
+                buffer = data.read()
+                self.DetSSB = np.frombuffer(buffer[: 3 * self.N * 8], dtype=np.float64)
+                self.phir, self.epsm = struct.unpack(
+                    "dd", buffer[3 * self.N * 8 : 3 * self.N * 8 + 16]
+                )
         except FileNotFoundError:
             print(f"Error: {filename} not found.")
             return
 
+    def add_data(self):
+        """
+        Load the time-domain data from the xDat file for a given detector
+        at a given band and segment. Also computes the variance of the data,
+        taking into account any null values present.
+        """
+        xdatname = (
+            f"{self.path}/{self.seg:03d}/{self.name}/"
+            f"xdat_{self.seg:03d}_{self.band:04d}.bin"
+        )
 
-# class Signal:
-#     def __init__(self, N):
-#         self.xDat = np.zeros(N, dtype=np.float64)
-#         self.DetSSB = np.zeros(3 * N, dtype=np.float64)  # Ephimeries of the detector
-#         self.aa = np.zeros(N, dtype=np.float64)  # Amplitude modulation a(t)
-#         self.bb = np.zeros(N, dtype=np.float64)  # Amplitude modulation b(t)
-#         self.shft = np.zeros(N, dtype=np.float64)  # Resampling
-#         self.shftf = np.zeros(N, dtype=np.float64)  # Time shifting
+        try:
+            with open(xdatname, "rb") as data:
+                self.data = np.frombuffer(data.read(self.N * 4), dtype=np.float32)
+                print(
+                    f"Loaded data for detector {self.name}, band {self.band} in Float32 format, if \n using O3 data please make sure the read data is in Float64"
+                )
+        except FileNotFoundError:
+            print(f"Error: {xdatname} not found.")
+            exit(1)
 
-#         self.Nzeros = 0
+        # Checking for null values in the data
+        self.Nzeros = np.count_nonzero(self.data == 0)
 
-#         self.epsm = 0.0
-#         self.phir = 0.0
-#         self.sepsm = 0.0  # sin(epsm)
-#         self.cepsm = 0.0  # cos(epsm)
-#         self.sphir = 0.0  # sin(phi_r)
-#         self.cphir = 0.0  # cos(phi_r)
+        # Factor N / (N - Nzeros) to account for null values in the data
+        if self.Nzeros < self.N:
+            self.crf0 = self.N / (self.N - self.Nzeros)
+        else:
+            print("Warning: All data points are zero. Exiting.")
+            exit(1)
 
-#         self.crf0 = 0.0  # number of 0s as: N/(N-Nzeros)
-#         self.sig2 = 0.0  # variance of the signal
-
-#         self.xDatma = np.zeros(N, dtype=np.complex128)
-#         self.xDatmb = np.zeros(N, dtype=np.complex128)
-
-
-# class Settings:
-#     def __init__(self, N, nifo, omr, seg, band):
-#         self.N = N  # number of data points
-#         self.nifo = nifo  # number of detectors
-#         self.omr = omr  # C_OMEGA_R * dt (dimensionless Earth's angular frequency)
-#         self.ifo = [None] * nifo  # List of the detectors
-#         self.sepsm = 0.0  # sin(epsm)
-#         self.cepsm = 0.0  # cos(epsm)
-
-#         self.seg = seg  # segment number
-#         self.band = band  # frequency band
-
-
-# class Options:
-#     def __init__(self, indir, seg, mods=None):
-#         self.indir = indir  # input directory
-#         self.seg = seg  # segment number
-#         self.mods = mods if mods else []  # If there are any mods included
-
-
-# class AuxiliaryArrays:
-#     def __init__(self, N):
-#         self.t2 = np.zeros(N, dtype=np.float64)  # time^2
-#         self.cosmodf = np.zeros(N, dtype=np.float64)  # Earth position cosine
-#         self.sinmodf = np.zeros(N, dtype=np.float64)  # Earth position sine
-#         self.injection = np.zeros(
-#             10, dtype=np.float64
-#         )  # Injection array : noi, reference time, h0, f0, fdot, ra, dec, iota, psi, phi0
-
-
-# class ArrayInitializer:
-#     def __init__(self, sett: Settings, opts: Options, aux_arr: AuxiliaryArrays):
-#         self.sett = sett
-#         self.opts = opts
-#         self.aux_arr = aux_arr
-
-#     def init_arrays(self):
-#         for i in range(self.sett.nifo):
-#             print(self.sett.ifo[i].name)
-
-#     # def init_arrays(self):
-#     #     for i in range(self.sett.nifo):
-#     #         ifo = self.sett.ifo[i]
-
-#     #         # Input time-domain data handling
-
-#     #         try:
-#     #             with open(ifo.xdatname, "rb") as data:
-#     #                     ifo.sig.xDat = np.frombuffer(
-#     #                         data.read(self.sett.N * 8), dtype=np.float64
-#     #                     )
-#     #                 else:
-#     #                     ifo.sig.xDat = np.frombuffer(
-#     #                         data.read(self.sett.N * 4), dtype=np.float32
-#     #                     ).astype(np.float64)
-#     #         except FileNotFoundError:
-#     #             print(f"Error: {ifo.xdatname} not found.")
-#     #             exit(1)
-
-#     #         # Checking for null values in the data
-#     #         ifo.sig.Nzeros = np.sum(ifo.sig.xDat == 0)
-
-#     #         # Factor N/(N - Nzeros) to account for null values in the data
-#     #         ifo.sig.crf0 = (
-#     #             self.sett.N / (self.sett.N - ifo.sig.Nzeros)
-#     #             if ifo.sig.Nzeros < self.sett.N
-#     #             else float("inf")
-#     #         )
-
-#     #         # Estimation of the variance for each detector
-#     #         mean_xDat = np.mean(ifo.sig.xDat)
-#     #         ifo.sig.sig2 = ifo.sig.crf0 * np.mean((ifo.sig.xDat - mean_xDat) ** 2)
-
-#     #         # Ephemeris file handling
-#     #         filename = f"{self.opts.indir}/{self.opts.seg:03d}/{ifo.name}/DetSSB.bin"
-
-#     #         try:
-#     #             with open(filename, "rb") as data:
-#     #                 ifo.sig.DetSSB = np.frombuffer(
-#     #                     data.read(3 * self.sett.N * 8), dtype=np.float64
-#     #                 )
-#     #                 ifo.sig.phir = struct.unpack("d", data.read(8))[0]
-#     #                 ifo.sig.epsm = struct.unpack("d", data.read(8))[0]
-#     #                 print(f"Using {filename} as detector {ifo.name} ephemerids...")
-#     #         except FileNotFoundError:
-#     #             print(f"Error: {filename} not found.")
-#     #             return
-
-#     #         # sincos
-#     #         ifo.sig.sphir = np.sin(ifo.sig.phir)
-#     #         ifo.sig.cphir = np.cos(ifo.sig.phir)
-#     #         ifo.sig.sepsm = np.sin(ifo.sig.epsm)
-#     #         ifo.sig.cepsm = np.cos(ifo.sig.epsm)
-
-#     #         self.sett.sepsm = ifo.sig.sepsm
-#     #         self.sett.cepsm = ifo.sig.cepsm
-
-#     #         ifo.sig.xDatma = np.zeros(self.sett.N, dtype=np.complex128)
-#     #         ifo.sig.xDatmb = np.zeros(self.sett.N, dtype=np.complex128)
-
-#     #         ifo.sig.aa = np.zeros(self.sett.N, dtype=np.float64)
-#     #         ifo.sig.bb = np.zeros(self.sett.N, dtype=np.float64)
-
-#     #         ifo.sig.shft = np.zeros(self.sett.N, dtype=np.float64)
-#     #         ifo.sig.shftf = np.zeros(self.sett.N, dtype=np.float64)
-
-#     #     # Check if the ephemerids have the same epsm parameter
-#     #     for i in range(1, self.sett.nifo):
-#     #         if self.sett.ifo[i - 1].sig.sepsm != self.sett.ifo[i].sig.sepsm:
-#     #             print(
-#     #                 f"The parameter epsm (DetSSB.bin) differs for detectors {self.sett.ifo[i - 1].name} and {self.sett.ifo[i].name}. Aborting..."
-#     #             )
-#     #             exit(1)
-
-#     #     # if all is well with epsm, take the first value
-#     #     self.sett.sepsm = self.sett.ifo[0].sig.sepsm
-#     #     self.sett.cepsm = self.sett.ifo[0].sig.cepsm
-
-#     #     # Auxiliary arrays, Earth's rotation
-#     #     indices = np.arange(self.sett.N)
-#     #     omrt = self.sett.omr * indices  # Earth angular velocity * dt * i
-#     #     self.aux_arr.t2 = indices**2
-#     #     self.aux_arr.t2 = indices ** 2
-#     #     self.aux_arr.cosmodf = np.cos(omrt)
-#     #     self.aux_arr.sinmodf = np.sin(omrt)
+        # Estimation of the variance for each detector
+        self.mean = np.mean(self.data)
+        self.var = self.crf0 * np.mean((self.data - self.mean) ** 2)
