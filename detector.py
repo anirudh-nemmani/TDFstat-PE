@@ -38,8 +38,11 @@ class Detector:
         self.mean = 0.0  # Mean of the detector data
         self.var = 0.0  # Variance of the detector data
 
+        self.start_time = 0.0  # Start time of the data segment
+
         self.get_DetSSB()
         self.add_data()
+        self.get_start_time()
 
     def get_DetSSB(self):
         """
@@ -92,3 +95,16 @@ class Detector:
         # Estimation of the variance for each detector
         self.mean = np.mean(self.data)
         self.var = self.crf0 * np.mean((self.data - self.mean) ** 2)
+
+    def get_start_time(self):
+        """
+        Load the start time of the data segment from the starting_date file.
+        """
+        start_time_filename = f"{self.path}/{self.seg:03d}/{self.name}/starting_date"
+
+        try:
+            with open(start_time_filename, "r") as data:
+                self.start_time = float(data.read().strip())
+        except FileNotFoundError:
+            print(f"Error: {start_time_filename} not found.")
+            return
