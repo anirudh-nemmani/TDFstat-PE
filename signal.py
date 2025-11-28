@@ -13,6 +13,10 @@ class Signal:
         self._generate_time_array()
         self._generate_signal()
         self.omega_r = constants.C_OMEGA_R
+        self.phir = #to be taken from detector class
+        self.gamma = #to be taken from detector class
+        self.lambda = # to be taken from detector class
+        
         
 
     
@@ -64,7 +68,24 @@ class Signal:
 
     def amplitude_modulation(self):
 
-        return
+        modulation = self.ra-self.phir-self.omega_r*t
+        a1  = (1/16)*np.sin(2*self.gamma)*(3 - np.cos(2*self.lambda))*(3- np.cos(2*self.dec))*np.cos(2*(modulation))
+        a2 = -0.25*np.cos(2*self.gamma)*np.sin(self.lambda)*(3-np.cos(2*self.dec))*np.sin(2*(modulation))
+        a3 = 0.25*np.sin(2*self.gamma)*np.sin(2*self.lambda)*np.sin(2*self.dec)*np.cos(modulation)
+        a4 = -0.5*np.cos(2*self.gamma)*np.cos(self.lambda)*np.sin(2*self.dec)*np.sin(modulation)
+        a5 = 0.75*np.sin(2*self.gamma)*(np.cos(self.lambda))**2 * (np.cos(self.dec))**2
+
+        a  = a1 +a2 +a3 +a4 +a5 
+        
+        b1 = np.cos(2*self.gamma)*np.sin(self.lambda)*np.sin(self.dec)*np.cos(2*modulation)
+        b2 = 0.25*np.sin(2*self.gamma)*(3 - np.cos(2*self.lambda))*np.sin(self.dec)*np.sin(2*modulation)
+        b3 = np.cos(2*self.gamma)*np.cos(self.lambda)*np.cos(self.dec)*np.cos(modulation)
+        b4 = 0.25*np.sin(2*self.gamma)*np.sin(2*self.lambda)*np.cos(self.self.dec)*np.sin(modulation)
+
+        b = b1 + b2 + b3 + b4 
+
+
+        return a, b
 
 
     def OMEGA_S(self):
