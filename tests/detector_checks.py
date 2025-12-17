@@ -4,55 +4,43 @@ sys.path.append("../")
 import matplotlib.pyplot as plt
 import numpy as np
 
-import constants as cs
-import detector
+from TDFstat_PE import constants, utils
+from TDFstat_PE.detector import interferometer as interferometer
 
-in_dir = "/work/chuck/virgo/O4/input_data_O4_G02/xdat_O4_6d/"
+strain_data_dir = "/work/chuck/virgo/O4/input_data_O4_G02/xdat_O4_6d/"
 dt = 0.5
 band = 17
 segment = 1
 
-num_days = 6
-N = int((cs.C_SIDDAY * num_days) / dt)
+detector_list = ["H1", "L1"]
 
-det_h1 = detector.Detector("H1", in_dir, segment, band, N)
-det_l1 = detector.Detector("L1", in_dir, segment, band, N)
+check = interferometer.InterferometerList(
+    detector_list, segment, band, dt, strain_data_dir
+)
 
-print("phi_r of H1 detector for this segment and band is %s" % det_h1.phir)
-print("phi_r of L1 detector for this segment and band is %s" % det_l1.phir)
+for det in check:
+    print("\n")
+    print("Detector name: %s" % (det.name))
+    print("phi_r = %s" % (det.ephimeries.phir))
+    print("epsm = %s" % (det.ephimeries.epsm))
+    print("crf0 = %s" % (det.strain_data.crf0))
+    print("variance = %s" % (det.strain_data.var))
+    print("\n")
 
-print("epsm of H1 detector for this segment and band is %s" % det_h1.epsm)
-print("epsm of L1 detector for this segment and band is %s" % det_l1.epsm)
+time_series = np.arange(
+    0,
+    (check[0].strain_data.nlength) * check[0].strain_data.delta_t,
+    check[0].strain_data.delta_t,
+)
 
-det_ssb_h1 = np.reshape(det_h1.DetSSB, (N, 3))
-det_ssb_h1_mag = np.sum(det_ssb_h1**2, axis=1)
-
-det_ssb_l1 = np.reshape(det_l1.DetSSB, (N, 3))
-det_ssb_l1_mag = np.sum(det_ssb_l1**2, axis=1)
-
-print("The crf0 for the detector %s is %s" % (det_h1.name, det_h1.crf0))
-print("The crf0 for the detector %s is %s" % (det_l1.name, det_l1.crf0))
-
-print("The variance for the detector %s is %s" % (det_h1.name, det_h1.var))
-print("The variance for the detector %s is %s" % (det_l1.name, det_l1.var))
-
-start_time_h1 = det_h1.start_time
-start_time_l1 = det_l1.start_time
-
-if start_time_h1 != start_time_l1:
-    print("The starting times for the two detectors are not the same!")
-    exit(1)
-
-start_time = start_time_h1
-
-print("The start time for the test data is %s" % (start_time))
-
-time_series = start_time + np.arange(0, N * dt, dt)
+colors = {"H1": "#ee0000", "L1": "#4ba6ff"}
 
 plt.figure(figsize=(10, 6))
-plt.plot(time_series - time_series[0], det_ssb_h1_mag, label="H1", color="#ee0000")
-plt.plot(time_series - time_series[0], det_ssb_l1_mag, label="L1", color="#4ba6ff")
-plt.xlabel(r"Time - $t_{0}$ [s]")
+for det in check:
+    det_ssb = det.ephimeries.DetSSB
+    magnitude = np.sum(det_ssb**2, axis=1)
+    plt.plot(time_series, magnitude, label=det.name, color=colors[det.name])
+plt.xlabel(r"Time$ [s]")
 plt.ylabel(r"Detector SSB")
 plt.title(r"Detector SSB for O4 time segement 001 band 0017")
 plt.legend()
@@ -60,17 +48,36 @@ plt.grid()
 plt.savefig("./plots/DetSSB.png", dpi=300)
 plt.close()
 
+
+print("The start time for the test data is %s" % (check[0].strain_data.start_time))
+
+time_series = check[0].strain_data.start_time + np.arange(
+    0,
+    check[0].strain_data.nlength * check[0].strain_data.delta_t,
+    check[0].strain_data.delta_t,
+)
+
 plt.figure(figsize=(10, 6))
 plt.subplot(2, 1, 1)
-plt.plot(time_series - time_series[0], det_h1.data, label="H1", color="#ee0000")
-plt.ylabel(r"Detector Data (H1)")
+plt.plot(
+    time_series - time_series[0],
+    check[0].strain_data.time_domain_strain,
+    label=check[0].name,
+    color=colors[check[0].name],
+)
+plt.ylabel(r"Detector Data (%s)" % (check[0].name))
 plt.grid()
 plt.legend()
 
 plt.subplot(2, 1, 2)
-plt.plot(time_series - time_series[0], det_l1.data, label="L1", color="#4ba6ff")
+plt.plot(
+    time_series - time_series[0],
+    check[1].strain_data.time_domain_strain,
+    label=check[1].name,
+    color=colors[check[1].name],
+)
 plt.xlabel(r"Time - $t_{0}$ [s]")
-plt.ylabel(r"Detector Data (L1)")
+plt.ylabel(r"Detector Data (%s)" % (check[1].name))
 plt.grid()
 plt.legend()
 

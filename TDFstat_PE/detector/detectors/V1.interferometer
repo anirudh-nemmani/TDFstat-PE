@@ -1,0 +1,11 @@
+# Advanced LIGO at design sensitvity.
+# arXiv:gr-qc/0008066 Table 1
+# https://dcc.ligo.org/LIGO-P1200087-v42/public
+name = 'V1'
+length = 3
+latitude = 43 + 37. / 60 + 53.0921 / 3600
+longitude = 10 + 30. / 60 + 16.1878 / 3600
+elevation = 51.884
+xarm_azimuth = 70.5674
+yarm_azimuth = 160.5674
+orientation = 135. - 19. + 25. / 60. + 57.96 / 3600.
