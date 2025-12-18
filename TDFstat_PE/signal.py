@@ -1,167 +1,170 @@
-import configparser
-
+import constants
 import numpy as np
 
-import constants
-from detector import det_init
+class TimeSeries:
+    def __init__(self, detector):
+        self.detector = detector
 
+        self.segment = detector.segment
+        self.band = detector.band
+        self.overlap = detector.overlap
 
-class Signal:
-    def __init__(self, params):
-        for i in params["detectors"]:
-            self.detector = det_init.Detector(
-                i, params["indir"], params["seg"], params["band"], params["N"]
-            )
+        self.start_time = detector.start_time
+        self.delta_t = detector.delta_t
+        self.duration = detector.duration
 
-            self._generate_time_array()
-            self._generate_signal()
+        self.starting_frequency = detector.starting_frequency
+        self.sampling_frequency = detector.sampling_frequency
+        self.bandwidth = detector.bandwidth
 
-    def _generate_time_array(self):
-        dt = self.sampling_time()
-        start_time = self.detector.start_time
-        self.time_array = (
-            start_time
-            + np.arange(0, self.duration + dt, dt)
-            - self.params["reference_time"]
-        )
-        self.time_square_array = self.time_array * self.time_array
-        self.t_plus_t_squ_by_2 = self.time_array + self.time_square_array / 2
+        self.time_array = detector.time_array
+        self.time_square_array = detector.time_square_array
+        self.t_plus_t_squ_by_2 = detector.t_plus_t2_over_2
 
-    def nSource(self):
-        n1 = np.cos(self.params["ra"]) * np.cos(self.params["dec"])
-        n2 = np.sin(self.params["ra"]) * np.cos(self.params["dec"])
-        n3 = np.sin(self.params["dec"])
+    @staticmethod
+    def _generate_source_vector(ra, dec):
+        """
+        Generate a constant unit vector in the direction of the star in the SSB reference frame
+        """
+        cos_dec = np.cos(dec)
+        return np.array([
+            np.cos(ra) * cos_dec,
+            np.sin(ra) * cos_dec,
+            np.sin(dec),
+        ])
 
-        return np.array([n1, n2, n3])
+    def _generate_amplitude_modulation(self, ra, dec):
+        """
+        Generate the amplitude modulation functions a(t) and b(t).
 
-    # Amplitude modulation function ( a replica of modvir in settings.c)
-
-    def amplitude_modulation(self):
-        modulation = self.ra - self.phir - self.omega_r * t
-        a1 = (
-            (1 / 16)
-            * np.sin(2 * self.detector.egam)
-            * (3 - np.cos(2 * self.detector.elam))
-            * (3 - np.cos(2 * self.dec))
-            * np.cos(2 * (modulation))
-        )
-        a2 = (
-            -0.25
-            * np.cos(2 * self.detector.egam)
-            * np.sin(self.detector.elam)
-            * (3 - np.cos(2 * self.dec))
-            * np.sin(2 * (modulation))
-        )
-        a3 = (
-            0.25
-            * np.sin(2 * self.detector.egam)
-            * np.sin(2 * self.detector.elam)
-            * np.sin(2 * self.dec)
-            * np.cos(modulation)
-        )
-        a4 = (
-            -0.5
-            * np.cos(2 * self.detector.egam)
-            * np.cos(self.detector.elam)
-            * np.sin(2 * self.dec)
-            * np.sin(modulation)
-        )
-        a5 = (
-            0.75
-            * np.sin(2 * self.detector.egam)
-            * (np.cos(self.detector.elam)) ** 2
-            * (np.cos(self.dec)) ** 2
+        Reference:
+            Phys. Rev. D 58, 063001 (1998), Eq. 12–13
+        """
+        ra_mod = (
+            ra
+            - self.detector.ephemeris.phir
+            - constants.C_OMEGA_R * self.time_array
         )
 
-        a = a1 + a2 + a3 + a4 + a5
+        sin_2psi = np.sin(2.0 * self.detector.orientation_radians)
+        cos_2psi = np.cos(2.0 * self.detector.orientation_radians)
 
-        b1 = (
-            np.cos(2 * self.detector.egam)
-            * np.sin(self.detector.elam)
-            * np.sin(self.dec)
-            * np.cos(2 * modulation)
-        )
-        b2 = (
-            0.25
-            * np.sin(2 * self.detector.egam)
-            * (3 - np.cos(2 * self.detector.elam))
-            * np.sin(self.dec)
-            * np.sin(2 * modulation)
-        )
-        b3 = (
-            np.cos(2 * self.detector.egam)
-            * np.cos(self.detector.elam)
-            * np.cos(self.dec)
-            * np.cos(modulation)
-        )
-        b4 = (
-            0.25
-            * np.sin(2 * self.detector.egam)
-            * np.sin(2 * self.detector.elam)
-            * np.cos(self.self.dec)
-            * np.sin(modulation)
+        lon = self.detector.longitude_radians
+        sin_lon = np.sin(lon)
+        cos_lon = np.cos(lon)
+        sin_2lon = np.sin(2.0 * lon)
+        cos_2lon = np.cos(2.0 * lon)
+
+        sin_dec = np.sin(dec)
+        cos_dec = np.cos(dec)
+        sin_2dec = np.sin(2.0 * dec)
+        cos_2dec = np.cos(2.0 * dec)
+
+        cos_ra = np.cos(ra_mod)
+        sin_ra = np.sin(ra_mod)
+        cos_2ra = np.cos(2.0 * ra_mod)
+        sin_2ra = np.sin(2.0 * ra_mod)
+
+        a = (
+            0.0625 * sin_2psi * (3.0 - cos_2lon)
+            * (3.0 - cos_2dec) * cos_2ra
+            - 0.25 * cos_2psi * sin_lon
+            * (3.0 - cos_2dec) * sin_2ra
+            + 0.25 * sin_2psi * sin_2lon
+            * sin_2dec * cos_ra
+            - 0.5 * cos_2psi * cos_lon
+            * sin_2dec * sin_ra
+            + 0.75 * sin_2psi * cos_lon ** 2
+            * cos_dec ** 2
         )
 
-        b = b1 + b2 + b3 + b4
-
+        b = (
+            cos_2psi * sin_lon * sin_dec * cos_2ra
+            + 0.25 * sin_2psi * (3.0 - cos_2lon)
+            * sin_dec * sin_2ra
+            + cos_2psi * cos_lon * cos_dec * cos_ra
+            + 0.25 * sin_2psi * sin_2lon
+            * cos_dec * sin_ra
+        )
         return a, b
 
-    def OMEGA_S(self):
+    @staticmethod
+    def _generate_four_amplitudes(
+        wobble_angle, inclination, polarization, reference_phase
+    ):
         """
-        Dimensionless angular frequency
+        Generate the four amplitudes of the continuous gravitational
+        wave signal.
+
+        Reference:
+            Phys. Rev. D 58, 063001 (1998), Eq. 32–35
         """
+        sin_w2 = np.sin(wobble_angle) ** 2
+        cos_i = np.cos(inclination)
+        inc_term = 0.5 * (1.0 + cos_i ** 2)
 
-        return 2 * np.pi * self.frequency * self.sampling_time
+        cos_2psi = np.cos(2.0 * polarization)
+        sin_2psi = np.sin(2.0 * polarization)
+        cos_2phi = np.cos(2.0 * reference_phase)
+        sin_2phi = np.sin(2.0 * reference_phase)
 
-    def four_amplitudes(self):
-        # To be cross-verified with TDFstat paper 1 (eq.32,33,34,35)
-
-        term1 = np.sin(self.wobble_angle) * np.sin(self.wobble_angle)
-        term2 = 0.5 * (1 + np.cos(self.inclination) * np.cos(self.inclination))
-
-        psi = self.polarization
-        phi0 = self.phase
-        iota = self.inclination
-
-        A21 = term1 * (
-            term2 * np.cos(2 * psi) * np.cos(2 * phi0)
-            - np.cos(iota) * np.sin(2 * psi) * np.sin(2 * phi0)
+        a21 = sin_w2 * (
+            inc_term * cos_2psi * cos_2phi
+            - cos_i * sin_2psi * sin_2phi
         )
-        A22 = term1 * (
-            term2 * np.sin(2 * psi) * np.cos(2 * phi0)
-            + np.cos(iota) * np.cos(2 * psi) * np.sin(2 * phi0)
+        a22 = sin_w2 * (
+            inc_term * sin_2psi * cos_2phi
+            + cos_i * cos_2psi * sin_2phi
         )
-
-        A23 = term1 * (
-            -term2 * np.cos(2 * psi) * np.sin(2 * phi0)
-            - np.cos(iota) * np.sin(2 * psi) * np.cos(2 * phi0)
+        a23 = -sin_w2 * (
+            inc_term * cos_2psi * sin_2phi
+            + cos_i * sin_2psi * cos_2phi
         )
-        A24 = term1 * (
-            -term2 * np.sin(2 * psi) * np.sin(2 * phi0)
-            + np.cos(iota) * np.cos(2 * psi) * np.cos(2 * phi0)
+        a24 = -sin_w2 * (
+            inc_term * sin_2psi * sin_2phi
+            - cos_i * cos_2psi * cos_2phi
         )
 
-        return A21, A22, A23, A24
+        return a21, a22, a23, a24
 
-    def phase_function(self):
-        """Contains the phase part from Eq (14) of PhysRevD.58.063001 . This function should be a function of time."""
+    def _generate_signal_phase(self, frequency, spin_down, ra, dec):
+        """
+        Generate the phase of the continuous gravitational wave signal.
+        Reference:
+            http://dx.doi.org/10.1103/PhysRevD.58.063001 eq 14
+        """
+        nsource = self._generate_source_vector(ra, dec)
+        r_dot_n = np.dot(self.detector.ephemeris.DetSSB, nsource)
 
-        nsource = self.nSource()
+        zero_order = (1 + r_dot_n) * frequency * self.time_array
+        first_order = self.t_plus_t_squ_by_2 * spin_down
+        return 2 * np.pi * (zero_order + first_order)
 
-        r_dot_n = self.detector.DetSSB.dot(nsource)
+    def generate_time_domain_signal(self, **params):
+        """
+        Generate the time-domain continuous gravitational wave signal.
+        """
+        phase = self._generate_signal_phase(
+            params["frequency"],
+            params["spin_down"],
+            params["ra"],
+            params["dec"],
+        )
 
-        zero_order = (1 + r_dot_n) * self.params["frequency"] * self.time_array
+        a, b = self._generate_amplitude_modulation(
+            params["ra"], params["dec"]
+        )
 
-        first_order = self.t_plus_t_squ_by_2 * self.params["spin_down"]
+        a21, a22, a23, a24 = self._generate_four_amplitudes(
+            params["wobble_angle"],
+            params["inclination"],
+            params["polarization"],
+            params["reference_phase"],
+        )
 
-        phase = self.params["phase"] + 2 * np.pi * (zero_order + first_order)
+        signal = (
+            (a * a21 + b * a22) * np.cos(2.0 * phase)
+            + (a * a23 + b * a24) * np.sin(2.0 * phase)
+        )
 
-        return phase
-
-    def signal(self):
-        A21, A22, A23, A24 = self.four_amplitudes()
-        a, b = self.amplitude_modulation()
-
-        return (a * A21 + b * A22) * np.cos(self.phase_function()) + (
-            a * A23 + b * A24
-        ) * np.sin(self.phase_function())
+        return signal, self.time_array
