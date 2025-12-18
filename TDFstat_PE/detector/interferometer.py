@@ -159,6 +159,25 @@ class StrainData(object):
         self.mean = np.mean(self.time_domain_strain)
         self.var = self.crf0 * np.mean((self.time_domain_strain - self.mean) ** 2)
 
+    def generate_zero_strain_data(self, start_time, duration):
+        """
+        Generate zero strain data.
+
+        Args:
+            start_time (float): Start time of the strain data segment.
+            duration (float): Duration of the strain data segment in seconds.
+        """
+        self.start_time = start_time
+        self.duration = duration
+        self.nlength = int(self.duration / self.delta_t) + 1
+
+        self.time_domain_strain = np.zeros(self.nlength, dtype=np.float32)
+
+        self.Nzeros = self.nlength
+        self.crf0 = float("inf")
+        self.mean = 0.0
+        self.var = 0.0
+
     @property
     def alpha(self):
         """
@@ -411,6 +430,12 @@ class Interferometer(object):
             start_time, duration, variance, mean, seed
         )
 
+    def generate_zero_strain_data(self, start_time, duration):
+        """
+        Generate zero strain data for the interferometer.
+        """
+        self.strain_data.generate_zero_strain_data(start_time, duration)
+
     def calculate_frequency_domain_strain(self):
         """
         Compute the frequency-domain strain data for the interferometer.
@@ -536,3 +561,10 @@ class InterferometerList(list):
             ifo.generate_gaussian_strain_data(
                 start_time, duration, variance, mean, seed
             )
+
+    def generate_zero_strain_data(self, start_time, duration):
+        """
+        Generate zero strain data for all interferometers in the list.
+        """
+        for ifo in self:
+            ifo.generate_zero_strain_data(start_time, duration)
